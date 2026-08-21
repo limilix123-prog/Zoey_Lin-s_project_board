@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{# v0.9.1 sub-task 5: align system_view.html with view.html (sub-task 4).
+   The system project page is a self-contained read surface (7/17): the
+   full members table, change-owner placeholder, and 6-layer modules tree
+   were removed and replaced with a one-line Manage nav. Per-project
+   write actions now live behind the Members / Settings / Board (edit)
+   links below; the system project owner is permanent so the rule is
+   surfaced as a single muted line rather than a visual block. #}
+{% block title %}{{ project.name | e }} · 系统{% endblock %}
+{% block content %}
+<h1>{{ project.name | e }}</h1>
+
+{% if notice %}
+  <div class="flash">{{ notice | e }}</div>
+{% endif %}
+{% if error %}
+  <div class="flash">{{ error | e }}</div>
+{% endif %}
+
+<p class="muted">查看身份 {{ current_username() }} (<abbr title="{{ format_rank_label(g.current_user.rank) }} — 详见 /help/glossary">T{{ g.current_user.rank }}</abbr>)</p>
+<p class="muted">系统项目不可修改 — 不可删除。</p>
+
+<h2>项目摘要</h2>
+{# v0.9.1 patch (8/13 mavis) — 4 字段从 4 行 dl 压成 2 行 p (7/17 plain text,
+   跟 nav 一致形态, 无 dl 块化). user 反馈 "4 行过长". 2 行布局:
+   - 第 1 行: 模块 + 特性 (项目规模摘要)
+   - 第 2 行: 总计行数 + 清理状态 (代码质量摘要) #}
+<p><strong>模块</strong> {{ summary.module_count }} &nbsp; <strong>特性</strong> {{ summary.feature_count }}</p>
+<p><strong>总计行数</strong> {{ summary.total_lines }} <span class="muted">(平均 {{ '%.1f' | format(summary.avg_lines) }})</span> &nbsp; <strong>清理状态</strong> {{ summary.clean_count }} 干净, {{ summary.dirty_count }} 脏
+   <br><span class="muted">管理员可见 (项目下 .py 文件统计): 行数 = 项目下所有 .py 文件总行数; 干净 = 命名规范无 warning 的文件数; 脏 = 有 warning 的文件数。</span></p>
+
+<h2>Feature 面板</h2>
+{# per-project kanban. The system project is admin-only so the link
+   is always visible to admin (admin auto-passes can_manage_members).
+   Same view.html pattern: link shown to actors with write authority,
+   placeholder for read-only viewers. #}
+{% if can_manage_members %}
+  <p><a href="{{ url_for('feature_board.view_board', project_id=project.id) }}">查看 Feature 面板</a></p>
+{% else %}
+  <p class="muted">(仅管理员/经理可管理 Feature 面板)</p>
+{% endif %}
+
+<h2>管理</h2>
+<p>
+  <a href="{{ url_for('project_members_page.show_members', project_id=project.id) }}">成员</a>
+  &nbsp;
+  <a href="{{ url_for('project_settings.show_settings', project_id=project.id) }}">设置</a>
+  &nbsp;
+  <a href="{{ url_for('feature_board.view_board', project_id=project.id) }}">面板 (编辑)</a>
+</p>
+<p class="muted">系统项目所有者不可更改。成员管理和 Feature 面板编辑可从上方链接进入。</p>
+
+<p class="muted"><a href="{{ url_for('projects_list.show_projects') }}">返回项目列表</a></p>
+{% endblock %}

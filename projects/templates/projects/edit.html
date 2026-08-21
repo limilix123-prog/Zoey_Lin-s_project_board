@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Edit project · {{ project.name | e }}{% endblock %}
+{% block content %}
+{% block above_title %}<p class="muted"><a href="{{ url_for('project_view.show_project', project_id=project.id) }}">← return</a></p>{% endblock %}
+<h1>Edit project</h1>
+<p class="muted">Project: <code>{{ project.name | e }}</code></p>
+<p class="muted">查看身份 {{ current_username() }} (<abbr title="{{ format_rank_label(g.current_user.rank) }} — 详见 /help/glossary">T{{ g.current_user.rank }}</abbr>)</p>
+
+{% if error %}
+  <div class="flash">{{ error | e }}</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('project_edit.submit_edit_project', project_id=project.id) }}">
+  <label for="edit-name-{{ project.id | e }}">Name</label>
+  <input id="edit-name-{{ project.id | e }}"
+         type="text"
+         name="name"
+         required
+         maxlength="200"
+         value="{{ form.name | e }}" />
+
+  <label for="edit-desc-{{ project.id | e }}">Description</label>
+  <textarea id="edit-desc-{{ project.id | e }}"
+            name="description"
+            rows="4"
+            maxlength="4000">{{ form.description | e }}</textarea>
+
+  <p>
+    <button type="submit">Save</button>
+    <a href="{{ url_for('project_view.show_project', project_id=project.id) }}">Cancel</a>
+  </p>
+</form>
+
+<p class="muted"><a href="{{ url_for('project_view.show_project', project_id=project.id) }}">Back to project</a></p>
+{% endblock %}

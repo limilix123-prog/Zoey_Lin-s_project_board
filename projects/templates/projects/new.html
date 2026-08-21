@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}新项目{% endblock %}
+{% block content %}
+<h1>新项目</h1>
+
+{# v0.9.5.5a P1-18 — 08_project_new 没项目类型没说 system 不让创; form 上方加 muted 解释. #}
+<p class="muted">系统项目 (system) 由系统自动创建, 不可手动建; 你创建的是普通项目 (common)。详见 <a href="/help/glossary">术语表</a>。</p>
+
+{% if error %}
+  <div class="flash" role="alert">{{ error | e }}</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('project_create.submit_new_project') }}" autocomplete="off">
+  <p>
+    <label for="project-name">名称</label><br />
+    <input id="project-name" name="name" type="text" maxlength="200" required autofocus
+           value="{{ (form.name or '') | e }}" />
+  </p>
+  <p>
+    <label for="project-description">描述</label><br />
+    <textarea id="project-description" name="description" rows="6" maxlength="4000">{{ (form.description or '') | e }}</textarea>
+  </p>
+  <p>
+    {# v0.5.5 owner dropdown, v0.5.6 unchanged: the actor picks who
+       owns the new project; the default selection is the actor's
+       own id so a blank submit falls back to the v0.1.1 "caller is
+       owner" behaviour. The dropdown lists every user sorted by
+       username and marks the actor's row with "(you)" so the
+       default is visually obvious. The server validates the value
+       independently of the dropdown so a hand-crafted POST is still
+       caught. #}
+    <label for="project-所有者">所有者</label><br />
+    <select id="project-owner" name="owner_id" required style="font-size: var(--text-sm); padding: 2px 6px;">
+      {% for u in all_users %}
+        {% set is_default = (form.owner_id and form.owner_id == u.id|string) or
+                            (not form.owner_id and u.is_self) %}
+        <option value="{{ u.id | e }}" {% if is_default %}selected{% endif %}>
+          {{ u.username | e }} (T{{ u.rank }}){% if u.is_self %} (你){% endif %}
+        </option>
+      {% endfor %}
+    </select>
+  </p>
+  <p>
+    <button type="submit" style="font-size: var(--text-sm); padding: 2px 8px;">创建项目</button>
+  </p>
+</form>
+
+<p class="muted"><a href="{{ url_for('projects_list.show_projects') }}">返回项目列表</a></p>
+{% endblock %}

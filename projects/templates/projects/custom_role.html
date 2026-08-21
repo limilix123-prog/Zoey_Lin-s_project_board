@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{{ role.name | e }} — {{ project.name | e }}{% endblock %}
+{% block content %}
+{% block above_title %}
+  <p class="muted">
+    <a href="{{ url_for('project_members_page.list_roles_page', project_id=project.id) }}">← 返回角色列表</a>
+    ·
+    <a href="{{ url_for('project_view.show_project', project_id=project.id) }}">项目</a>
+  </p>
+{% endblock %}
+<h1>角色 — <code>{{ role.name | e }}</code></h1>
+
+{% if notice %}<div class="flash">{{ notice | e }}</div>{% endif %}
+{% if error %}<div class="flash" role="alert">{{ error | e }}</div>{% endif %}
+
+<p class="muted">{{ role.description | e }}</p>
+
+{# v0.9.2 sub-task 7 — role detail.
+   Lists current node grants + offers a grant form.
+   The assignment-to-member step happens on the
+   members page (a "Role" dropdown per row). #}
+
+{# v0.9.5.4 P1-3 — "节点写入授权" 啥是 "节点" 没解释; 中文 "节点" 含义
+   过广. h2 加 abbr tooltip + glossary 链接. 7/17 守门 plain text. #}
+<h2><abbr title="给 role 授予某节点的写权限。RBAC 业务级 lock (server 端代码拦截) 详见 /help/glossary">节点写入授权</abbr> <a href="/help/glossary" class="muted">(?)</a></h2>
+{% if grants %}
+  <ul>
+    {% for g in grants %}
+      <li>
+        <code>node {{ g.node_id }}</code> — 可写 = <code>{{ g.can_write }}</code>
+        <form method="post" style="display:inline"
+              action="{{ url_for('project_members_page.submit_role_node_permission', project_id=project.id, role_id=role.id) }}">
+          <input type="hidden" name="node_id" value="{{ g.node_id }}" />
+          <input type="hidden" name="can_write" value="0" />
+          <button type="submit" style="font-size: var(--text-sm); padding: 2px 8px;">撤销</button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  {# v0.9.5.5a P1-17 — "请在下方添加" form 不在; link 准确指引去 Feature 面板加节点. #}
+  <p class="muted">暂无节点授权 — 节点授权在 <a href="{{ url_for('feature_board.show_board', project_id=project.id) }}">Feature 面板</a> 添加, 详见 <a href="/help/glossary">术语表</a>。</p>
+{% endif %}
+
+{% if can_manage and all_nodes %}
+  <h3>授权 role on a node</h3>
+  {% set granted_ids = grants | map(attribute='node_id') | list %}
+  <form method="post"
+        action="{{ url_for('project_members_page.submit_role_node_permission', project_id=project.id, role_id=role.id) }}">
+    <p>
+      <label for="role-node">节点</label>
+      <select id="role-node" name="node_id" required style="font-size: var(--text-sm); padding: 2px 6px;">
+        {% for n in all_nodes %}
+          <option value="{{ n.id }}"{% if n.id in granted_ids %} disabled{% endif %}>{{ n.label }} (L{{ n.level }})</option>
+        {% endfor %}
+      </select>
+      <input type="hidden" name="can_write" value="1" />
+      <button type="submit" style="font-size: var(--text-sm); padding: 2px 8px;">授权</button>
+    </p>
+  </form>
+{% elif can_manage %}
+  {# v0.9.5.5a P1-17 — 配合 L41, link 准确指引去 Feature 面板. #}
+  <p class="muted">(本项目暂无节点 — 请先在 <a href="{{ url_for('feature_board.show_board', project_id=project.id) }}">Feature 面板</a> 添加节点)</p>
+{% endif %}
+
+<p class="muted">
+  如需将此角色分配给成员，请访问
+  <a href="{{ url_for('project_members_page.show_members', project_id=project.id) }}">成员页面</a>
+  并从每行的"角色"下拉框中选择。
+</p>
+{% endblock %}

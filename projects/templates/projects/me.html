@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}个人资料{% endblock %}
+{% block content %}
+<h1>个人资料</h1>
+
+{% if notice %}
+  <div class="flash">{{ notice }}</div>
+{% endif %}
+{% if error %}
+  <div class="flash" role="alert">{{ error }}</div>
+{% endif %}
+
+<h2>账户</h2>
+<dl>
+  <dt>用户名</dt>
+  <dd><code>{{ user.username | e }}</code></dd>
+  <dt>角色</dt>
+  {# v0.9.5 P0-3 — single label source. ``format_rank_label``
+     is the Jinja-global wrapper around
+     ``projects.feature_storage_rbac.format_rank_label`` so /me,
+     /users, and /projects/<id> all render the same string for
+     the same rank. Replaces the v0.7.x ``user.role`` string
+     ("user" / "admin" / ...) that was confusing because a
+     visitor saw "user" on /me but "T0" on /users. #}
+  {# v0.9.5.4 P1-22 — abbr tooltip so /me 角色 label 跟 username
+     撞名 (e.g. kylins 看自己页 看到 "user" 以为是 username 类型) 时,
+     hover 显示 rank 语义而不是 username 字符. 跟 system_view L20 +
+     user_view L7 同模板. #}
+  <dd><code><abbr title="你的系统权限等级, T0 = 最高管理员。详见 /help/glossary">{{ format_rank_label(user.rank) | e }}</abbr></code></dd>
+  <dt>加入于</dt>
+  <dd><code>{{ user.created_at | format_time | e }}</code></dd>
+</dl>
+
+<h2>更改密码</h2>
+{# v0.9.5.5b P2-7 — 改密码 form 上加密码强度提示. 之前 form
+   只贴 input, 访客不知道密码规则. 7/17 守门 plain text
+   muted, 不用 JS 实时强度条 (避免引入 client 端复杂度,
+   跟项目零三方依赖基线一致). #}
+<p class="muted">密码至少 8 个字符, 建议含字母 + 数字 + 特殊字符。</p>
+<form method="post" action="{{ change_password_url }}" autocomplete="off">
+  <p>
+    <label for="me-old">当前密码</label><br />
+    <input id="me-old" name="old_password" type="password" maxlength="1024" required autofocus />
+  </p>
+  <p>
+    <label for="me-new">新密码</label><br />
+    <input id="me-new" name="new_password" type="password" maxlength="1024" required />
+  </p>
+  <p>
+    <label for="me-confirm">确认新密码</label><br />
+    <input id="me-confirm" name="confirm_password" type="password" maxlength="1024" required />
+  </p>
+  <p>
+    <button type="submit">更新密码</button>
+  </p>
+</form>
+
+<h2>我的项目 <span class="muted">(我创建 + 自动拥有所有者权限)</span></h2>
+{# v0.9.5.4 P1-11 — 我的项目 vs 参与 不点开看不清, h2 末尾加 muted
+   简短解释区分两者. 7/17 守门 plain text, 缩进表达层级. #}
+<p class="muted">所有者 = 项目 owner, 自动拥有全部权限 (RBAC 业务级 lock, 详见 <a href="/help/glossary">术语表</a>)。</p>
+{% if owned_projects %}
+  <ul>
+    {% for proj in owned_projects %}
+      <li>
+        <a href="{{ url_for('project_view.show_project', project_id=proj.id) }}"><code>{{ proj.name | e }}</code></a>
+        — {{ proj.description_preview | e }}
+        <span class="muted">({{ proj.created_at | format_time | e }})</span>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="muted">暂无项目。</p>
+{% endif %}
+
+<h2>我参与的项目 <span class="muted">(我被分配为成员, 权限来自 role 授权)</span></h2>
+{# v0.9.5.4 P1-11 — 配合上面 h2 解释, 进一步引导 user 理解 role 授权路径. #}
+<p class="muted">成员 = 通过 role 获得权限。每个 role 可对每个节点单独设置可写 / 只读授权 (RBAC 业务级 lock, 详见 <a href="/help/glossary">术语表</a>)。</p>
+{% if member_projects %}
+  <ul>
+    {% for proj in member_projects %}
+      <li>
+        <a href="{{ url_for('project_view.show_project', project_id=proj.id) }}"><code>{{ proj.name | e }}</code></a>
+        所有者 <code>{{ proj.owner_username | e }}</code>
+        — {{ proj.description_preview | e }}
+        <span class="muted">({{ proj.created_at | format_time | e }})</span>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="muted">您未参与其他项目。</p>
+{% endif %}
+
+{% endblock %}

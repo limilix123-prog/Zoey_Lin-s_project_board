@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{# v0.9.1 sub-task 4 — Issue 1: per-page title. #}
+{% block title %}设置 · {{ project.name | e }}{% endblock %}
+{% block content %}
+{% block above_title %}<p class="muted"><a href="{{ url_for('project_view.show_project', project_id=project.id) }}">← 返回</a></p>{% endblock %}
+<h1>设置 — {{ project.name | e }}</h1>
+
+{% if notice %}
+  <div class="flash">{{ notice | e }}</div>
+{% endif %}
+{% if error %}
+  <div class="flash">{{ error | e }}</div>
+{% endif %}
+
+<dl>
+  <dt>所有者</dt>
+  <dd><code>{{ owner_username | e }}</code></dd>
+  <dt>分类</dt>
+  <dd><code>{{ bucket | e }}</code></dd>
+</dl>
+
+<p class="muted">
+  {# v0.9.1 sub-task 4 — Issue 3: change owner was relocated to
+     the members page. Surface the link so the user can reach the
+     form without a cross-page nav assumption. #}
+  {# v0.9.5.4 P1-5 — auto_own 英文 jargon (历史版本 settings dl 里有
+     auto_own 项, 8/14 verifier 报告里提到; v0.9.5.4 看到 settings
+     字段已简化, 但仍加 RBAC 业务级 lock + glossary 链接引导 user
+     理解 auto-own / RBAC 概念. 7/17 守门 plain text muted. #}
+  需要修改项目所有者? 请到
+  <a href="{{ url_for('project_members_page.show_members', project_id=project.id) }}">成员</a> 页面操作。auto-own (T0/T1 自动拥有全部项目, 无需手动加入成员) 与 RBAC 业务级 lock 详见 <a href="/help/glossary">术语表</a>。
+</p>
+
+{# v0.9.1 — settings form is self-contained (7/17): name +
+   description are on the same page. HTML form fields only
+   (input / textarea); no JSON. #}
+<form method="post" action="{{ url_for('project_settings.submit_settings', project_id=project.id) }}">
+  <p>
+    <label for="settings-name-{{ project.id | e }}">项目名称</label><br>
+    <input id="settings-name-{{ project.id | e }}"
+           type="text"
+           name="name"
+           value="{{ project.name | e }}"
+           {% if not can_edit_meta %}disabled{% endif %}
+           required>
+  </p>
+  <p>
+    <label for="settings-description-{{ project.id | e }}">描述</label><br>
+    <textarea id="settings-description-{{ project.id | e }}"
+              name="description"
+              rows="4"
+              cols="60"
+              {% if not can_edit_meta %}disabled{% endif %}>{{ project.description | e }}</textarea>
+  </p>
+
+  <p>
+    <button type="submit" {% if not can_edit_meta %}disabled{% endif %}>保存</button>
+    <a href="{{ url_for('project_view.show_project', project_id=project.id) }}">取消</a>
+  </p>
+</form>
+
+<p class="muted">
+  <a href="{{ url_for('project_view.show_project', project_id=project.id) }}">返回项目</a>
+  ·
+  <a href="{{ url_for('project_members_page.show_members', project_id=project.id) }}">成员</a>
+</p>
+{% endblock %}

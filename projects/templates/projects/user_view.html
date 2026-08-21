@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ target_user.username | e }}{% endblock %}
+{% block content %}
+{% block above_title %}<p class="muted"><a href="{{ url_for('users_list.show_users') }}">← 返回</a></p>{% endblock %}
+<h1>{{ target_user.username | e }}</h1>
+
+<p class="muted">查看身份 {{ current_username() }} (<abbr title="{{ format_rank_label(g.current_user.rank) }} — 详见 /help/glossary">T{{ g.current_user.rank }}</abbr>)</p>
+<p class="muted">你正在编辑 <code>{{ target_user.username | e }}</code> 的资料。</p>
+
+{% if notice %}
+  <div class="flash">{{ notice | e }}</div>
+{% endif %}
+
+{# v0.9.1 patch (8/13 mavis) — rank-based RBAC.
+   - Role string deprecated; UI shows T-level (T0..T4).
+   - Change rank form replaces Change role form.
+   - `_can_change_rank` + `_available_new_ranks` are the policy;
+     templates only render what the helper whitelists. #}
+<h2>账户</h2>
+<dl>
+  <dt>用户名</dt>
+  <dd><code>{{ target_user.username | e }}</code></dd>
+  <dt>层级</dt>
+  {# v0.9.5 P0-3 + P0-4 — uniform T-level label plus abbr tooltip.
+     Same pattern as users_list.html: ``T0`` (the rank code) plus
+     the full Chinese label, with the label as the ``<abbr title>``
+     so a hover surfaces the role description. #}
+  <dd><code><abbr title="{{ format_rank_label(target_user.rank) | e }}">T{{ target_user.rank }}</abbr></code> &nbsp; <span class="muted">{{ format_rank_label(target_user.rank) | e }}</span></dd>
+</dl>
+
+{% if can_change_rank and not is_self and not is_admin_target %}
+  <h2>更改职级</h2>
+  {# v0.9.5.4 P1-20 — 14_user_view_projleader T1-T4 不解释为啥没 T0;
+     select 只显示 T1-T4, user 疑惑"是不是漏了". 实际上 T0 是 admin
+     不能直接设. 加 muted 引导 + glossary 链接. #}
+  <p class="muted">T0 系统管理员是永久的, 不能直接设置; 只有 T1 平台管理员及以上能改 user 职级。详见 <a href="/help/glossary">术语表</a>。</p>
+  <form method="post" action="{{ url_for('user_role.submit_user_rank', user_id=target_user.id) }}">
+    <p>
+      <label for="new_rank">设置 <code>{{ target_user.username | e }}</code> 的职级:</label>
+      <select id="new_rank" name="new_rank">
+        {% for r in available_new_ranks %}
+          {# v0.9.5.4 P1-20 — option label 用 format_rank_label 改成
+             T1 平台管理员 / T2 项目负责人 / T3 团队负责人 / T4 普通用户,
+             不再仅显示 T1/T2/T3/T4. 跟 system_view L20 + view L13 (v0.9.5.2)
+             同模板. #}
+          <option value="{{ r }}"{% if r == target_user.rank %} selected{% endif %}>{{ format_rank_label(r) | e }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">更改</button>
+    </p>
+    <p class="muted">硬规则: 不能修改自己的职级; T0 系统管理员是永久的。</p>
+  </form>
+{% endif %}
+
+<h2>他们拥有的项目</h2>
+{% if owned_projects %}
+  <ul>
+    {% for proj in owned_projects %}
+      <li>
+        <a href="{{ url_for('project_view.show_project', project_id=proj.id) }}"><code>{{ proj.name | e }}</code></a>
+        — {{ proj.description_preview | e }}
+        <span class="muted">({{ proj.created_at | e }})</span>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="muted">暂无项目。</p>
+{% endif %}
+
+<h2>他们参与的项目</h2>
+{% if member_projects %}
+  <ul>
+    {% for proj in member_projects %}
+      <li>
+        <a href="{{ url_for('project_view.show_project', project_id=proj.id) }}"><code>{{ proj.name | e }}</code></a>
+        所有者 <code>{{ proj.owner_username | e }}</code>
+        — {{ proj.description_preview | e }}
+        <span class="muted">({{ proj.created_at | e }})</span>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="muted">未参与其他项目。</p>
+{% endif %}
+{% endblock %}

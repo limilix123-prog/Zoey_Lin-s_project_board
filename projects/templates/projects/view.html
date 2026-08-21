@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{# v0.9.1 sub-task 4 — Issue 1: per-page title. 7/17 self-contained:
+   the page name appears in the browser tab so the visitor can
+   identify the page without reading the body. #}
+{% block title %}{{ project.name | e }} · 查看{% endblock %}
+{% block content %}
+<h1>{{ project.name | e }}</h1>
+
+{% if notice %}
+  <div class="flash">{{ notice | e }}</div>
+{% endif %}
+{% if error %}
+  <div class="flash">{{ error | e }}</div>
+{% endif %}
+
+<h2>项目信息</h2>
+<dl>
+  <dt>所有者</dt>
+  <dd><code>{{ owner_username | e }}</code></dd>
+  <dt>描述</dt>
+  <dd>{{ project.description | e }}</dd>
+  <dt>已创建</dt>
+  <dd><code>{{ project.created_at | e }}</code></dd>
+  <dt>您的角色</dt>
+  {# v0.9.5 P0-3 — uniform T-level label. The T-scale is a
+     platform concept (0=admin, 1=manager, 2=PL, 3=TL, 4=user);
+     the page shows the project-relative role string ("owner" /
+     "admin" / "member") with the rank label as a tooltip so a
+     visitor can identify the platform rank regardless of which
+     project-relative label is shown. v0.9.7p1 cleanup dropped
+     the redundant ``viewer_rank_label`` pre-format pass; the
+     template now calls ``format_rank_label`` directly on
+     ``viewer_user_rank``. #}
+  <dd>
+    <code><abbr title="{{ format_rank_label(viewer_user_rank) | e }}">{{ viewer_role | e }}</abbr></code>
+  </dd>
+</dl>
+
+<h2>管理</h2>
+{# v0.9.1 sub-task 4 — Issue 2 / Issue 3 / Issue 4: view is now a
+   self-contained read surface that links to every per-project
+   action. The nodes tree (formerly the view's read-only 6-level
+   copy) moved to ``/board``; the member list + change owner form
+   moved to ``/members``; only project info + manage links remain
+   here. 7/17 self-contained: every per-project write action is
+   reachable in one click, no cross-page jumps. Read-only viewers
+   (T3 / T4 not owner) see only the read-only Board link. #}
+{% if can_manage_members %}
+  <p>
+    <a href="{{ url_for('project_settings.show_settings', project_id=project.id) }}">设置</a>
+    &nbsp;
+    <a href="{{ url_for('project_members_page.show_members', project_id=project.id) }}">成员</a>
+    &nbsp;
+    {# v0.9.5.5a P1-10 — 改文案 "查看/编辑 Feature 面板" 区分 L60 read-only entry
+       (P1-10 root: view L57 (manage entry) + L66 (read-only entry) 同 URL, 现合并文案).
+       7/17 守门 plain text. #}
+    <a href="{{ url_for('feature_board.show_board', project_id=project.id) }}">查看/编辑 Feature 面板</a>
+  </p>
+{% else %}
+  <p>
+    <a href="{{ url_for('feature_board.show_board', project_id=project.id) }}">面板</a>
+  </p>
+  <p class="muted">(only the project 所有者, 管理员, or 经理 can manage 设置 / 成员 / 面板 edits)</p>
+{% endif %}
+
+{% if can_delete %}
+  <h2>危险区</h2>
+  <form method="post" action="{{ url_for('project_delete.submit_delete_project', project_id=project.id) }}"
+        onsubmit="return confirm('确定删除项目 {{ project.name | e }} 吗? 此操作不可撤销。');">
+    <p>
+      <button type="submit">删除项目</button>
+    </p>
+  </form>
+{% endif %}
+
+<p class="muted"><a href="{{ url_for('projects_list.show_projects') }}">返回项目列表</a></p>
+{% endblock %}

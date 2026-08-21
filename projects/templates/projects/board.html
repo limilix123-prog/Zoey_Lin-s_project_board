@@ -1,0 +1,522 @@
+{% extends "base.html" %}
+{# v0.9.1 sub-task 4 — Issue 1: per-page title. #}
+{% block title %}面板 · {{ project.name | e }}{% endblock %}
+{% block content %}
+{# v0.9.1 patch (8/13 mavis) — features 页面顶部 5 段堆叠挤占 board-layout
+   视觉空间 (user 反馈), 8/13 拍 B:
+   - 砍 L26-34 go-to 段 (4 跨页跳链接, 违反 7/17 self-contained 严格守门)
+   - L6-7 + L16-24 合并成 1 行 muted (描述 · Viewing as · 权限状态)
+   - 保留: 1 h1 + 1 行 muted + notice/error flash 条件段 + board-layout
+   - 不动: nav 4 链接 (7/22 RBAC 锁核心 UI 端点不动) #}
+{% block above_title %}<p class="muted"><a href="{{ url_for('project_view.show_project', project_id=project.id) }}">← 返回</a></p>{% endblock %}
+<h1>{{ project.name | e }} — 面板</h1>
+<p class="muted">查看身份 {{ current_username() }} (<abbr title="{{ format_rank_label(g.current_user.rank) }} — 详见 /help/glossary">T{{ g.current_user.rank }}</abbr>) · {% if can_write %}可写权限{% elif my_grants %}可写权限: {% for g in my_grants %}{{ g.node_name | e }} (l{{ g.node_level }}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}只读权限{% endif %}</p>
+
+{% if notice %}<div class="flash">{{ notice | e }}</div>{% endif %}
+{% if error %}<div class="flash">{{ error | e }}</div>{% endif %}
+
+{# ===== v0.9.1 sub-task 10 — board.html 移植 v4 visual =====
+   v4 视觉 (8/12 17:01 user 拍): sidebar 6 层树 + main 单 node 详情
+   + 操作栏 [+ 加子节点] [删除节点] + inline 删除 confirm
+   + 新未命名 node 详情页 + 7/17 守门 (仅 .action-btn 块化)
+   7/17 self-contained 守门:
+   - sidebar 简表 + details 折叠 (browser native, no-JS 也能用)
+   - main 单 node 详情 (CSS sibling selector + 11 hidden radio)
+   - 全宽布局 (取消 base.html 的 max-width 56rem, board.html 独立样式)
+   - 缩进表达层级 (ul ul padding-left 1.5em)
+   - 操作栏 [+ 加子节点] form submit (no-JS 兜底) + [删除节点] button
+   - inline 删除 confirm <details> 折叠 + 二次确认
+   - 新未命名 node 详情: 红字 banner + name input autofocus
+   7/17 放宽: 仅 2 个操作按钮 (.action-btn) 块化 (button 4px border-radius) ===== #}
+<section class="board-layout">
+
+  {# 1. 隐藏 radio buttons (CSS sibling selector 驱动 main 详情单选) #}
+  {% for n in all_nodes_flat %}
+    <input type="radio" name="sel" id="sel-{{ n.id }}" class="sel-radio"{% if selected_node_id == n.id %} checked{% endif %}>
+  {% endfor %}
+
+  {# 2. 左侧 sidebar: 6 层树简表 #}
+  <aside class="tree-nav" id="treeNav">
+    <h2>项目树</h2>
+    {# v0.9.5.4 P1-2 — 6-level (phase / module / feature / sub / 任务 /
+       子任务) 没解释; first-time user 不知道"项目树"多深, 啥是"顶级
+       节点". 加 muted 解释段 + glossary 链接. 7/17 守门 plain text. #}
+    <p class="muted">6 层结构: phase (阶段) / module (模块) / feature (特性) / sub / 任务 / 子任务。点 [+ 添加顶级节点] 创建 phase 节点。详见 <a href="/help/glossary">术语表</a>。</p>
+
+    {% macro render_tree_nav(node, depth) %}
+      <li>
+        {% if node.children %}
+          <details open data-node="{{ node.id }}">
+            <summary>
+              <span class="caret"></span>
+              <label for="sel-{{ node.id }}" class="node-name">{{ node.name | e }}</label>
+              {# v0.9.5.5b P2-8 — status text 加 abbr tooltip 解释 4 状态
+                 流转 (待办 → 进行中 → 已完成 → 已归档). 7/17 守门
+                 plain text, 用 HTML built-in <abbr title> 不引入 JS.
+                 跟 user_view L7 / system_view L20 / me.html L29
+                 (rank abbr) 同模板, 保持项目 tooltip 一致性.
+                 data-node 保留 (L121 inline-meta 不加, 避免
+                 "L{n.level} · <abbr>...</abbr>" 视觉拥挤). #}
+              <span class="muted status-text {{ node.status | e }}" data-node="{{ node.id }}"><abbr title="状态: 待办 → 进行中 → 已完成 → 已归档。已归档节点不再可编辑, 但保留历史">{{ node.status | e }}</abbr></span>
+            </summary>
+            <ul>
+              {% for child in node.children %}
+                {{ render_tree_nav(child, depth + 1) }}
+              {% endfor %}
+            </ul>
+          </details>
+        {% else %}
+          <label for="sel-{{ node.id }}" class="node-leaf">
+            <span class="leaf"></span>
+            <span class="node-name">{{ node.name | e }}</span>
+            {# v0.9.5.5b P2-8 — status text 加 abbr tooltip 解释 4 状态
+               流转 (待办 → 进行中 → 已完成 → 已归档). 跟 L53 summary
+               行对称, 让访客在 detail 关闭时也能看到状态解释. 7/17
+               守门 plain text, 用 HTML built-in <abbr title> 不引入 JS. #}
+            <span class="muted status-text {{ node.status | e }}" data-node="{{ node.id }}"><abbr title="状态: 待办 → 进行中 → 已完成 → 已归档。已归档节点不再可编辑, 但保留历史">{{ node.status | e }}</abbr></span>
+          </label>
+        {% endif %}
+      </li>
+    {% endmacro %}
+
+    <ul>
+      {% for node in tree %}
+        {{ render_tree_nav(node, 0) }}
+      {% endfor %}
+    </ul>
+    {% if not tree %}
+      {# v0.9.5.5a P1-16 — 看板 empty state 没说怎么开始; 加引导点 [+ 添加顶级节点] 创建 phase. #}
+      <p class="muted">暂无顶级节点 — 点 [+ 添加顶级节点] 创建 phase, 详见 <a href="/help/glossary">术语表</a></p>
+    {% endif %}
+
+    {% if can_write %}
+      <form class="add-child-form" method="post" action="{{ url_for('feature_board.create_node', project_id=project.id) }}">
+        <input type="hidden" name="parent_id" value="">
+        <input type="hidden" name="name" value="未命名">
+        <input type="hidden" name="status" value="backlog">
+        <input type="hidden" name="description" value="">
+        <button type="submit" class="action-btn">+ <abbr title="项目最高层节点, 6 层结构的根 (phase 阶段)">添加顶级节点</abbr></button>
+      </form>
+    {% endif %}
+    <p class="resize-hint">sidebar 右下角可拖动</p>
+  </aside>
+
+  {# 3. 拖拽分割线 (JS 平滑; no-JS 仅作视觉) #}
+  <div class="splitter" id="splitter" tabindex="0" role="separator" aria-orientation="vertical" title="拖拽调宽度 (JS 平滑); 也可拖 sidebar 右下角 (CSS resize, 无 JS 也能用)"></div>
+
+  {# 4. main 详情: 1 个 article per node, CSS sibling selector 单选显示 #}
+  <section class="node-detail">
+    <h2>节点详情</h2>
+    {% for n in all_nodes_flat %}
+      {% set is_new = (n.name == '未命名') %}
+      {% set is_archived = (n.status == 'archived') %}
+      <article class="node{% if is_new %} new-node-page{% endif %}{% if is_archived %} is-archived{% endif %}" data-for="{{ n.id }}">
+        {% if is_new %}
+          <p class="new-node-banner">⚠ 新未命名节点, 填名字</p>
+        {% endif %}
+        <h3>{{ n.name | e }}</h3>
+
+        <div class="node-actions">
+          {% if can_write and n.level < max_level %}
+            <form class="add-child-form" method="post" action="{{ url_for('feature_board.create_node', project_id=project.id) }}" data-parent="{{ n.id }}">
+              <input type="hidden" name="parent_id" value="{{ n.id }}">
+              <input type="hidden" name="name" value="未命名">
+              <input type="hidden" name="status" value="backlog">
+              <input type="hidden" name="description" value="">
+              <button type="submit" class="action-btn">+ 加子节点</button>
+            </form>
+          {% endif %}
+          {% if can_write %}
+            <button type="button" class="action-btn delete op-delete-trigger">删除节点</button>
+          {% endif %}
+          <span class="inline-meta">L{{ n.level | e }} · <span class="status-text {{ n.status | e }}">{{ n.status | e }}</span></span>
+        </div>
+
+        {% if n.description %}
+          <p class="description">{{ n.description | e }}</p>
+        {% else %}
+          <p class="description muted">(空白, 填描述)</p>
+        {% endif %}
+
+        {% if can_write %}
+          {% if is_new %}
+            <form class="new-node-form" method="post" action="{{ url_for('feature_board.edit_node', project_id=project.id, node_id=n.id) }}" data-node="{{ n.id }}">
+              <label class="form-field">
+                <span>名称:</span>
+                <input type="text" name="name" placeholder="未命名" value="" required{% if n.id == selected_node_id %} autofocus{% endif %}>
+              </label>
+              <label class="form-field">
+                <span>描述：</span>
+                <textarea name="description" placeholder="可选"></textarea>
+              </label>
+              <label class="form-field">
+                <span>状态:</span>
+                <select name="status">
+                  <option value="backlog"{% if n.status == 'backlog' %} selected{% endif %}>待办</option>
+                  <option value="in_progress"{% if n.status == 'in_progress' %} selected{% endif %}>进行中</option>
+                  <option value="已完成"{% if n.status == 'done' %} selected{% endif %}>已完成</option>
+                  <option value="archived"{% if n.status == 'archived' %} selected{% endif %}>已归档</option>
+                </select>
+              </label>
+              <div class="form-actions">
+                <button type="submit">保存</button>
+                <span class="form-hint">保存 后 node 名称将更新, sidebar 同步, red banner 渐隐</span>
+                <span class="saved-flash" hidden></span>
+              </div>
+            </form>
+          {% else %}
+            <form class="status-form" method="post" action="{{ url_for('feature_board.change_node_status', project_id=project.id, node_id=n.id) }}" data-node="{{ n.id }}">
+              <label>状态:
+                <select name="status">
+                  <option value="backlog"{% if n.status == 'backlog' %} selected{% endif %}>待办</option>
+                  <option value="in_progress"{% if n.status == 'in_progress' %} selected{% endif %}>进行中</option>
+                  <option value="已完成"{% if n.status == 'done' %} selected{% endif %}>已完成</option>
+                  <option value="archived"{% if n.status == 'archived' %} selected{% endif %}>已归档</option>
+                </select>
+              </label>
+              <button type="submit">保存</button>
+              <span class="form-hint">POST → 整页 reload → sidebar 同步 (CSS color transition 200ms)</span>
+            </form>
+          {% endif %}
+
+          <details class="node-op op-delete">
+            <summary>删除节点</summary>
+            <div class="op-body">
+              {% if n.children %}
+                <p class="warning-meta">直接子节点: <strong>{{ n.children | length }}</strong> · 父节点: <strong>{% if n.parent_id %}{{ n.parent_id }}{% else %}无 (根节点){% endif %}</strong></p>
+                <p class="warning-meta">此操作不可逆, 物理删除整棵子树 (BFS DELETE).</p>
+              {% else %}
+                <p class="warning">确认删除 "{{ n.name | e }}"?</p>
+                <p class="warning-meta">此操作不可逆, 物理删除该节点.</p>
+                <p class="warning-meta">直接子节点: <strong>0</strong> （叶子节点） · 父节点: <strong>{% if n.parent_id %}{{ n.parent_id }}{% else %}无 (根节点){% endif %}</strong></p>
+                <p class="warning-meta">8/7 02:31 守门: 业务级 lock, server 鉴权后操作 DB, 不直接 SQL.</p>
+              {% endif %}
+              <div class="op-actions">
+                <form class="op-delete-form" method="post" action="{{ url_for('feature_board.delete_node', project_id=project.id, node_id=n.id) }}" data-node="{{ n.id }}">
+                  <button type="submit" class="confirm-delete">确认删除</button>
+                </form>
+                <button type="button" class="op-cancel">取消</button>
+              </div>
+            </div>
+          </details>
+        {% endif %}
+      </article>
+    {% endfor %}
+    {% if not all_nodes_flat %}
+      {# v0.9.5.5a P1-21 — 节点 description empty state 看不出能改啥; 加字段说明. #}
+      <p class="muted">暂无节点 — 点 [+ 添加顶级节点] 加第一个 phase。每个节点可设: name (名字) / description (描述) / status (状态) / parent_id (上级节点)。详见 <a href="/help/glossary">术语表</a>。</p>
+    {% endif %}
+  </section>
+</section>
+
+{# 7/17 self-contained 守门 (sub-task 10 v4 适配):
+   - 4 列 kanban UI 不再渲染 (sub-task 8 已砍, 不还原)
+   - 全宽布局 (覆盖 base.html max-width 56rem)
+   - 仅 .action-btn 块化 (padding + border + background + border-radius: 4px)
+   - 7/17 守门继续守: 无 border-radius (除 .action-btn) / 无 box-shadow
+     / 无 badge / 无 icon SVG / 无 web font / 无 CSS 框架
+   - details 折叠 / 缩进表达层级 (padding-left × level) 继续守门
+   - 8/7 02:31 守门: HTML form 字段, 不用 JSON (form action 都是 URL) #}
+<style>
+  /* === 全宽布局覆盖: 取消 base.html 的 max-width 56rem === */
+  body { max-width: none; margin: 0; padding: 0; }
+  main { max-width: none; padding: 1.5rem 2rem; }
+  .board-layout {
+    display: grid;
+    grid-template-columns: auto 6px 1fr;
+    gap: 0;
+    align-items: start;
+  }
+  @media (max-width: 48rem) {
+    main { padding: 1rem; }
+    .board-layout { grid-template-columns: 1fr; }
+    .splitter { display: none; }
+    aside.tree-nav { resize: none; max-width: none; }
+  }
+
+  /* === 12 hidden radio + CSS sibling selector (单 node 详情) === */
+  .sel-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 0; height: 0;
+  }
+  section.node-detail .node { display: none; }
+  {% for n in all_nodes_flat %}
+  #sel-{{ n.id }}:checked ~ section.node-detail .node[data-for="{{ n.id }}"] { display: block; }
+  {% endfor %}
+
+  /* === sidebar 树形 === */
+  aside.tree-nav {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    min-width: 200px;
+    max-width: 600px;
+    resize: horizontal;
+    padding-right: 0.5rem;
+  }
+  aside.tree-nav > h2 {
+    font-size: 0.75rem; font-weight: 600; margin: 0 0 0.875rem 0;
+    color: #888; letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  aside.tree-nav ul { list-style: none; padding: 0; margin: 0; }
+  aside.tree-nav ul ul { padding-left: 1.5em; }
+  aside.tree-nav li { line-height: 1.75; }
+
+  /* details / summary (浏览器原生折叠) */
+  details > summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::marker { content: ''; }
+  .caret {
+    display: inline-block;
+    width: 1em;
+    color: #06c;
+    text-align: center;
+    margin-right: 0.25em;
+    font-weight: 600;
+  }
+  .caret::before { content: '+'; }
+  details[open] > summary > .caret::before { content: '\2212'; }
+  .leaf {
+    display: inline-block;
+    width: 1em;
+    margin-right: 0.25em;
+  }
+  .node-name {
+    font-weight: 600;
+    color: #222;
+  }
+  .node-name:hover, summary:hover .node-name, .node-leaf:hover .node-name { text-decoration: underline; }
+  aside.tree-nav .muted { color: #888; font-size: 0.875em; margin-left: 0.25em; }
+  .resize-hint { margin: 0.5rem 0 0 0; font-size: 0.75rem; color: #aaa; }
+
+  /* === splitter (拖拽; no-JS 仅作视觉) === */
+  .splitter { cursor: col-resize; background: #eee; position: relative; align-self: stretch; }
+  .splitter:hover { background: #ccc; }
+  .splitter:focus { outline: 2px solid #06c; outline-offset: 0; }
+
+  /* === main 详情 === */
+  section.node-detail { padding-left: 1.5rem; }
+  section.node-detail > h2 {
+    font-size: 0.75rem; font-weight: 600; margin: 0 0 1.5rem 0;
+    color: #888; letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  article.node h3 { font-size: 1.05rem; font-weight: 600; margin: 0 0 0.25rem 0; color: #222; }
+  article.node .描述 { margin: 0; color: #333; }
+  article.node.is-已归档 h3 { color: #aaa; text-decoration: line-through; }
+
+  /* status text color (7/17: text only, no badge) + transition 200ms */
+  .status-text { transition: color 200ms ease; }
+  .status-text.待办     { color: #888; }
+  .status-text.进行中 { color: #06c; }
+  .status-text.已完成        { color: #080; }
+  .status-text.已归档    { color: #aaa; }
+
+  /* status form (HTML form, 7/22 RBAC 守门) */
+  .status-form {
+    margin: 1.5rem 0 0 0;
+    padding-top: 0.75rem;
+    border-top: 1px solid #eee;
+    font-size: 0.875rem;
+  }
+  .status-form label { color: #555; margin-right: 0.5rem; }
+  .status-form select {
+    font: inherit; padding: 0.25em 0.5em;
+    border: 1px solid #ccc; background: #fff; color: #222;
+  }
+  .status-form button {
+    color: #06c; background: none; border: none; padding: 0.25em 0.5em;
+    font: inherit; cursor: pointer; margin-left: 0.5rem;
+  }
+  .status-form button:hover { text-decoration: underline; }
+  .status-form button:disabled { color: #888; cursor: default; }
+  .status-form .form-hint { color: #888; font-size: 0.8125rem; margin-left: 0.5rem; }
+  .status-form .saved-flash { color: #080; font-weight: 600; margin-left: 0.5rem; }
+
+  /* === 操作栏 (2 个 action-btn 块化, 7/17 放宽) === */
+  .node-actions {
+    display: flex; align-items: center; gap: 0.5rem;
+    margin: 0.5rem 0 0.75rem 0; flex-wrap: wrap;
+  }
+  .node-actions .action-btn {
+    padding: 0.3em 0.75em;
+    border: 1px solid #ccc;
+    background: #f5f5f5;
+    border-radius: 4px;
+    font: inherit; color: #222; cursor: pointer;
+  }
+  .node-actions .action-btn:hover { background: #eee; }
+  .node-actions .action-btn:focus { outline: 2px solid #06c; outline-offset: 1px; }
+  .node-actions .action-btn.delete {
+    border-color: #c33; color: #c33; background: #faf5f5;
+  }
+  .node-actions .action-btn.delete:hover { background: #f5e8e8; }
+  .node-actions .inline-meta { color: #888; font-size: 0.875rem; margin-left: auto; }
+  .add-child-form { display: inline; margin: 0; padding: 0; }
+  .add-child-form input[类型="hidden"] { display: none; }
+
+  /* === 新未命名 node 详情页 form (form input 1px border + padding, 不块化) === */
+  .new-node-banner {
+    color: #c33; font-weight: 600; margin: 0 0 0.5rem 0; padding: 0;
+    font-size: 0.875rem;
+  }
+  .new-node-form {
+    margin: 1.5rem 0 0 0; padding-top: 0.75rem;
+    border-top: 1px solid #eee; font-size: 0.875rem;
+  }
+  .new-node-form .form-field { display: block; margin: 0.5rem 0; color: #555; }
+  .new-node-form .form-field > span { display: block; margin-bottom: 0.125rem; }
+  .new-node-form input[类型="text"],
+  .new-node-form textarea,
+  .new-node-form select {
+    font: inherit; width: 100%; max-width: 30rem;
+    padding: 0.25em 0.5em;
+    border: 1px solid #ccc; background: #fff; color: #222;
+  }
+  .new-node-form textarea { min-height: 4em; resize: vertical; }
+  .new-node-form .form-actions { margin-top: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+  .new-node-form .form-actions button {
+    color: #06c; background: none; border: none; padding: 0.25em 0.5em;
+    font: inherit; cursor: pointer;
+  }
+  .new-node-form .form-actions button:hover { text-decoration: underline; }
+  .new-node-form .form-actions button:disabled { color: #888; cursor: default; }
+  .new-node-form .form-hint { color: #888; font-size: 0.8125rem; }
+  .new-node-form .saved-flash { color: #080; font-weight: 600; }
+  .new-node-form .error-flash { color: #c33; font-weight: 600; }
+
+  /* === inline 删除 confirm (details 折叠) === */
+  .node-op { margin: 0.5rem 0; font-size: 0.875rem; }
+  .node-op > summary {
+    cursor: pointer; color: #555; padding: 0.25em 0;
+    list-style: none;
+  }
+  .node-op > summary::-webkit-details-marker { display: none; }
+  .node-op > summary::marker { content: ''; }
+  .node-op > summary:hover { color: #06c; }
+  .node-op > summary::before { content: '+ '; color: #06c; font-weight: 600; }
+  .node-op[open] > summary::before { content: '\2212  '; }
+  .node-op[open] > summary { margin-bottom: 0.25rem; }
+  .node-op .op-body { padding: 0.5rem 0 0.5rem 1rem; border-left: 1px solid #e0e0e0; margin-left: 0.25em; }
+  .node-op .op-body .op-actions {
+    margin-top: 0.75rem; display: flex; gap: 0.75rem; align-items: center;
+  }
+  .node-op .op-body .op-actions button {
+    color: #06c; background: none; border: none; padding: 0.25em 0.5em;
+    font: inherit; cursor: pointer;
+  }
+  .node-op .op-body .op-actions button:hover { text-decoration: underline; }
+  .node-op .op-body .op-actions button:disabled { color: #888; cursor: default; }
+  .node-op .op-body .op-actions button.confirm-delete { color: #c33; font-weight: 600; }
+  .node-op .op-body .warning { color: #c33; margin: 0 0 0.5rem 0; font-weight: 600; }
+  .node-op .op-body .warning-meta { color: #555; font-size: 0.8125rem; margin: 0 0 0.375rem 0; }
+  .node-op .op-body .warning-meta strong { color: #333; }
+
+  /* top-level add form (sidebar 底部) */
+  aside.tree-nav form.add-child-form { display: block; margin: 0.75rem 0 0 0; }
+  aside.tree-nav form.add-child-form .action-btn { width: 100%; }
+</style>
+
+<script>
+/* =====================================================
+   v0.9.1 sub-task 10 — JS 增强 (渐进, no-JS 兜底)
+   7/17 self-contained 守门继续守: no jQuery / no framework
+   ===================================================== */
+(function() {
+  /* 渐进增强 1: splitter 平滑拖拽 (no-JS fallback = CSS resize) */
+  var splitter = document.getElementById('splitter');
+  var sidebar = document.getElementById('treeNav');
+  if (splitter && sidebar) {
+    var dragging = false, startX = 0, startW = 0;
+    splitter.addEventListener('mousedown', function(e) {
+      dragging = true; startX = e.clientX;
+      startW = sidebar.getBoundingClientRect().width;
+      e.prevent默认();
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (!dragging) 返回;
+      var dx = e.clientX - startX;
+      var w = Math.max(200, Math.min(600, startW + dx));
+      sidebar.style.width = w + 'px';
+    });
+    document.addEventListener('mouseup', function() { dragging = false; });
+    splitter.addEventListener('keydown', function(e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') 返回;
+      var currentW = sidebar.getBoundingClientRect().width;
+      var step = (e.key === 'ArrowLeft' ? -20 : 20) * (e.shiftKey ? 3 : 1);
+      var w = Math.max(200, Math.min(600, currentW + step));
+      sidebar.style.width = w + 'px';
+      e.prevent默认();
+    });
+  }
+
+  /* 渐进增强 2: 互斥 — open add 自动关 delete (操作栏最多 1 个 details 开着) */
+  document.querySelectorAll('.node-actions').forEach(function(actions) {
+    var article = actions.closest('article');
+    if (!article) 返回;
+    var addForm = actions.querySelector('.add-child-form');
+    var deleteBtn = actions.querySelector('.op-delete-trigger');
+    var delete详情s = article.querySelector('details.op-delete');
+    if (addForm && delete详情s) {
+      addForm.addEventListener('mouseenter', function() {
+        delete详情s.open = false;
+      });
+    }
+    if (deleteBtn && delete详情s) {
+      deleteBtn.addEventListener('mouseenter', function() {
+        // 互斥: 鼠标移到 delete, 把 add 隐藏 (但 add 实际是 form, 不是 details)
+        // 这里只关掉其他 node 的 delete details
+        document.querySelectorAll('article .op-delete').forEach(function(d) {
+          if (d !== delete详情s) d.open = false;
+        });
+      });
+    }
+  });
+
+  /* 渐进增强 3: cancel 按钮 — 关掉所在 details */
+  document.querySelectorAll('.op-cancel').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var details = btn.closest('details');
+      if (details) details.open = false;
+    });
+  });
+
+  /* 渐进增强 4: [删除节点] trigger — open 同一 article 的 op-delete + scroll在to查看 */
+  document.querySelectorAll('.op-delete-trigger').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var article = btn.closest('article');
+      if (!article) 返回;
+      var del详情s = article.querySelector('details.op-delete');
+      if (del详情s) {
+        del详情s.open = true;
+        del详情s.scroll在to查看({behavior: 'smooth', block: 'nearest'});
+      }
+    });
+  });
+
+  /* 渐进增强 5: [+ 加子节点] form submit — no-JS 兜底 (form submit 到 server)
+     JS 增强: 不拦截, 让 server 处理 + 302 redirect to ?selected=<new_id>.
+     渐进: 这里只做 focus first input (after sidebar 树刷新) — 略
+     简化: no-JS 已够, JS 不做额外工作 (避免误操作掩盖 server 行为) */
+  document.querySelectorAll('.add-child-form').forEach(function(form) {
+    form.addEventListener('submit', function() {
+      // no prevent默认 — 让浏览器原生 form submit 走 server
+      // server 创建 node + 302 redirect to ?selected=<new_id>
+    });
+  });
+
+  /* 渐进增强 6: 新未命名 node form submit (已存在逻辑, server 处理) */
+  // no JS: form submits to /edit endpoint, server updates row, 302 → /board
+})();
+</script>
+
+{% if not can_write %}
+  <p class="muted">(只读 — 仅项目所有者 / 管理员 (T0) / 经理 (T1) 可编辑面板)</p>
+{% endif %}
+
+{% endblock %}

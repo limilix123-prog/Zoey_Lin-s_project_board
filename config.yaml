@@ -1,0 +1,42 @@
+# project_board config
+# 启动时 app factory 读取;首次启动检查 users 表,无 admin 则用 ADMIN_USERNAME/ADMIN_PASSWORD 自动建
+
+# === 首个 admin(启动时 sync 到 config) ===
+# config 是 bootstrap admin 的权威源:
+#   - 改 ADMIN_PASSWORD → 重启后该 user 的 password_hash 被覆盖(确保 config 永远生效)
+#   - 改 ADMIN_USERNAME 到一个不存在的名字 + DB 里无 admin → 建新的
+#   - DB 里已有 admin 但 username 不同 → 不动,警告(/admin/promote 手动处理)
+# 留空 = 跳过 seed,需手动跑 flask create-admin
+ADMIN_USERNAME: "kylins"
+ADMIN_PASSWORD: "kylins123"
+
+# === 首个 manager(全系统,跟 admin 同权限但可被改;rank 4) ===
+# 5-role 矩阵下 manager 排 admin 之下 (rank 4);旧 leader 部署会被 rename
+# 行为跟 admin seed 类似,但已有 admin user 不会被降级(因为 admin rank 更高)
+# 留空 = 跳过 manager seed(同 admin 语义)
+ADMIN_MANAGER_USERNAME: "manager"
+ADMIN_MANAGER_PASSWORD: "manager123"
+
+# === 首个 project_leader(项目内 super admin,启动时 seed) ===
+# project_leader = 项目内 super admin (rank 3);旧 mavis 部署会被 rename
+# 行为跟 admin seed 类似,但已有 admin / manager user 不会被降级(因为 rank 更高)
+# 留空 = 跳过 project_leader seed(同 admin 语义)
+ADMIN_PROJECT_LEADER_USERNAME: "project_leader"
+ADMIN_PROJECT_LEADER_PASSWORD: "project_leader123"
+
+# === 首个 team_leader(中间层,管 user;rank 2) ===
+# team_leader = 中间层管 user 角色 (rank 2);高 rank 已存在的 user 不会被降级
+# 留空 = 跳过 team_leader seed(同 admin 语义)
+ADMIN_TEAM_LEADER_USERNAME: "team_leader"
+ADMIN_TEAM_LEADER_PASSWORD: "team_leader123"
+
+# === Flask ===
+SECRET_KEY: "change-me-in-production-please-use-random-string"
+
+# === 数据库 ===
+DB_PATH: "data/project_board.db"
+
+# === Session ===
+SESSION_LIFETIME_HOURS: 168    # 7 天
+SESSION_COOKIE_SECURE: false   # 生产环境务必改 true(HTTPS)
+SESSION_COOKIE_HTTPONLY: true

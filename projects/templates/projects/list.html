@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}项目{% endblock %}
+{% block content %}
+<h1>项目</h1>
+
+{% if is_admin and has_system %}
+  <p class="muted">The "项目管理系统" project holds the platform's own module + feature status; 系统 rows 不可修改 and not deletable.</p>
+{% endif %}
+
+{# v0.9.5.4 P1-1 — "新项目" 是 plain text link 没 button 视觉, 容易和表
+   混在一起. 7/17 守门: 不 card/pill/badge/shadow, 保持 plain <a> +
+   muted 解释段. 不用 <button> 块化. #}
+<p class="muted">还没有项目? <a href="{{ new_project_url }}">新建一个</a></p>
+
+{% if items %}
+  <table>
+    <thead>
+      <tr>
+        <th>名称</th>
+        <th>描述</th>
+        <th>所有者</th>
+        <th>已创建</th>
+        <th>您的角色</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+        <tr>
+          <td>
+            <a href="{{ url_for('project_view.show_project', project_id=item.id) }}"><code>{{ item.name | e }}</code></a>
+            {% if item.is_system %}<span class="muted">(系统)</span>{% endif %}
+          </td>
+          <td>{{ item.description_preview | e }}</td>
+          <td><code>{{ item.owner_username | e }}</code></td>
+          <td><code>{{ item.created_at | e }}</code></td>
+          <td><code>{{ item.viewer_role | e }}</code></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="muted">暂无项目。</p>
+{% endif %}
+
+<p class="muted">
+  {# v0.9.1 sub-task 7 — go-to 段: 7/17 self-contained 守门, page
+     包含所有需要的信息。 业务跳转下放, 砍掉 base.html 全局
+     nav 后, 各 page 自己必须有"go to"段。 当前页即 projects list,
+     保留 "Back to projects" 自链以便从子页回跳; 加 Profile /
+     Users 链接让用户从本页也能跳到 /me / /users, 不再依赖
+     base.html nav。 #}
+  {# v0.9.5.5b P2-1 — 砍掉 "返回项目列表" 自链: 用户已经在列表页,
+     底部 link 冗余, 跳自己。保留 "个人资料" + "用户" 两条 go-to。 #}
+  <a href="{{ url_for('me.show_me') }}">个人资料</a>
+  ·
+  <a href="{{ url_for('users_list.show_users') }}">用户</a>
+</p>
+{% endblock %}

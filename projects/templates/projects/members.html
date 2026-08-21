@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{# v0.9.1 sub-task 4 — Issue 1: per-page title. 7/17 self-contained:
+   the page name appears in the browser tab so the visitor can
+   identify the page without reading the body. #}
+{% block title %}成员 · {{ project.name | e }}{% endblock %}
+{% block content %}
+{% block above_title %}<p class="muted"><a href="{{ url_for('project_view.show_project', project_id=project.id) }}">← 返回</a></p>{% endblock %}
+<h1>成员 — {{ project.name | e }}</h1>
+
+{% if notice %}
+  <div class="flash">{{ notice | e }}</div>
+{% endif %}
+{% if error %}
+  <div class="flash">{{ error | e }}</div>
+{% endif %}
+
+<dl>
+  <dt>分类</dt>
+  <dd><code>{{ bucket | e }}</code></dd>
+</dl>
+
+<h2>更换所有者</h2>
+{# v0.9.1 sub-task 4 — Issue 3: change owner form moved here from
+   the settings page. The form is self-contained (7/17): the
+   actor picks a new owner from the dropdown and submits without
+   clicking through to another URL. The chokepoint is
+   :func:`change_owner_action`; the route POSTs to
+   ``/projects/<id>/members/change-owner``. The form is hidden
+   for actors that are not T0 / T1, for system projects (the
+   owner is permanent), and when no other project_leader
+   exists. #}
+{% if can_change_owner %}
+  {% if owner_candidates %}
+    <form method="post" action="{{ url_for('project_members_page.submit_change_owner', project_id=project.id) }}"
+          onsubmit="return confirm('确定更改 {{ project.name | e }} 的所有者吗? 原所有者将失去自动访问权限。');">
+      <label for="new-owner-{{ project.id | e }}">新所有者</label>
+      <select id="new-owner-{{ project.id | e }}" name="new_owner_id" required style="font-size: var(--text-sm); padding: 2px 6px;">
+        {% for u in owner_candidates %}
+          <option value="{{ u.id | e }}">{{ u.username | e }} (T{{ u.rank }})</option>
+        {% endfor %}
+      </select>
+      <button type="submit" style="font-size: var(--text-sm); padding: 2px 8px;">更换所有者</button>
+    </form>
+  {% else %}
+    <p class="muted">没有可用的项目负责人接管此项目。</p>
+  {% endif %}
+{% else %}
+  {# v0.9.5.4 P1-5 — auto_own / RBAC 业务级 lock 没解释. 加 glossary
+     链接引导到术语表 (auto-own / 业务级 lock / T0/T1 区别). #}
+  <p class="muted">（仅 T0 / T1 可更换项目所有者。auto-own 与 RBAC 业务级 lock 详见 <a href="/help/glossary">术语表</a>）</p>
+{% endif %}
+
+<h2>成员列表</h2>
+{# v0.9.3 — members page is self-contained (7/17): member list,
+   add-member form, change owner form, and the role-grant
+   explanation all live on the same page. No cross-page jumps.
+   v0.9.1 also rendered a per-(user, node) permission table
+   here; v0.9.3 dropped that surface (user 8/13 19:34 拍板)
+   and the role-grant path is the only node-scoped write
+   surface (configured from the Manage roles link). #}
+{% if members_with_self %}
+  <table>
+    <thead>
+      <tr>
+        <th>用户名</th>
+        <th>角色</th>
+        <th>职级</th>
+        <th>已添加</th>
+        {% if can_manage_members %}<th>操作</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in members_with_self %}
+        <tr>
+          <td><code>{{ m.username | e }}</code></td>
+          <td>
+            {# v0.9.3 (8/14 user 拍板) — 2-section role column.
+               The "current" line shows the role the member is
+               currently wearing (with its description as muted
+               helper text, when the role has one). The "change to"
+               line is the form an editor (T0 / T1 / project owner)
+               uses to set a new role; the form is hidden for
+               non-editors and for the actor themselves (anti-self
+               RBAC). 7/17 self-contained: both lines render
+               in-place without a page jump — no card / no badge /
+               no pill, just two adjacent flows (indentation
+               through ``margin-top`` on the form, no new
+               block primitives). #}
+            {# 第一行: 当前已添加角色 #}
+            {% if m.custom_role_name %}
+              <code>{{ m.custom_role_name | e }}</code>
+              {% if m.custom_role_description %}
+                <div class="muted" style="font-size: var(--text-xs); margin-top: 2px;">
+                  {{ m.custom_role_description | e }}
+                </div>
+              {% endif %}
+            {% else %}
+              <span class="muted">（无角色）</span>
+            {% endif %}
+            {% if m.is_self %}<span class="muted"> (自己)</span>{% endif %}
+
+            {# 第二行: 改为 (if can_change) #}
+            {% if m.can_change_custom_role %}
+              <form method="post" style="display:inline; margin-top: 6px;"
+                    action="{{ url_for('project_members_page.submit_member_role', project_id=project.id, user_id=m.user_id) }}">
+                <span class="muted">改为：</span>
+                <select name="custom_role_id" aria-label="Role for {{ m.username | e }}" style="font-size: var(--text-sm); padding: 2px 6px;">
+                  <option value=""{% if m.custom_role_id is none %} selected{% endif %}>（无角色）</option>
+                  {% for r in custom_roles %}
+                    <option value="{{ r.id }}"{% if r.id == m.custom_role_id %} selected{% endif %}>{{ r.name | e }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" style="font-size: var(--text-sm); padding: 2px 8px;">set</button>
+              </form>
+            {% endif %}
+          </td>
+          <td><code>{{ m.rank }}</code></td>
+          <td><code>{{ m.added_at | e }}</code></td>
+          {% if can_manage_members %}
+            <td>
+              {% if m.is_self %}
+                <span class="muted">(你)</span>
+              {% else %}
+                <form method="post"
+                      style="display:inline"
+                      action="{{ url_for('project_members.remove_project_member', project_id=project.id, user_id=m.user_id) }}"
+                      onsubmit="return confirm('确定移除成员 {{ m.username | e }} 吗?');">
+                  <button type="submit">移除</button>
+                </form>
+              {% endif %}
+              {# v0.9.3 — per-(user, node) Permissions link is
+                 removed together with the underlying grant
+                 surface. The role-grant path is the only
+                 node-scoped write surface; configure it from
+                 the Manage roles link in the page footer. #}
+            </td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="muted">暂无成员。</p>
+{% endif %}
+
+{% if can_manage_members %}
+  <h2>添加成员</h2>
+  {% if addable_users %}
+    <form method="post" action="{{ url_for('project_members.add_project_member', project_id=project.id) }}">
+      <label for="add-user-{{ project.id | e }}">用户</label>
+      <select id="add-user-{{ project.id | e }}" name="user_id" required style="font-size: var(--text-sm); padding: 2px 6px;">
+        {% for u in addable_users %}
+          <option value="{{ u.id | e }}">{{ u.username | e }} (T{{ u.rank }})</option>
+        {% endfor %}
+      </select>
+      <button type="submit">添加成员</button>
+    </form>
+  {% else %}
+    <p class="muted">目前没有其他用户可添加。</p>
+  {% endif %}
+
+  <h2>角色 权限</h2>
+  <p class="muted">
+    {# v0.9.3 — per-(user, node) grant surface is gone (user 8/13
+       19:34 拍板). The role-grant path is the new node-scoped write
+       surface: assign a member to a custom role, then grant that
+       role can_write on a node. The Manage roles link below opens
+       the per-role detail page where per-(role, node) grants are
+       configured. #}
+    {# v0.9.5.4 P1-3 + P1-5 — RBAC 业务级 lock / 可写 / 只读 没解释.
+       在该段末尾加 RBAC 业务级 lock + glossary 链接, 引导 user 理解
+       授权 = 给 role 在某 node 上 "可写" 或 "只读" 权限, 业务级 lock
+       在 server 端代码拦截. 7/17 守门 plain text muted. #}
+    按（角色，节点）的可写授权可在
+    <a href="{{ url_for('project_members_page.list_roles_page', project_id=project.id) }}">管理角色</a>
+    页（每个角色一份表单）配置。v0.9.3 已移除按用户的 授权
+    权限面（
+    <code>project_node_权限</code> table + the
+    <code>/members/&lt;uid&gt;/权限</code> 页面已移除；
+    角色授权路径是唯一按节点的可写权限面）。RBAC 业务级 lock (server 端代码拦截, 不是物理 chmod) 详见 <a href="/help/glossary">术语表</a>。
+  </p>
+{% else %}
+  <p class="muted">（仅项目所有者、管理员或经理可管理成员）</p>
+{% endif %}
+
+{% if can_manage_members %}
+  {# v0.9.2 sub-task 7 — the 3 baseline roles
+     (project_leader / team_leader / user) are seeded
+     with default per-node grants (project_leader=write,
+     team_leader=write, user=read). New nodes can have
+     additional role-level grants configured from the
+     per-role detail page. #}
+{% endif %}
+
+<p class="muted">
+  <a href="{{ url_for('project_view.show_project', project_id=project.id) }}">返回项目</a>
+  ·
+  <a href="{{ url_for('project_settings.show_settings', project_id=project.id) }}">设置</a>
+  {% if can_manage_members %}
+    ·
+    <a href="{{ url_for('project_members_page.list_roles_page', project_id=project.id) }}">管理角色</a>
+  {% endif %}
+</p>
+{% endblock %}

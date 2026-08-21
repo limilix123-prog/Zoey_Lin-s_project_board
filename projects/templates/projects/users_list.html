@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}用户{% endblock %}
+{% block content %}
+<h1>用户</h1>
+
+{% if users %}
+  <table>
+    <thead>
+      <tr>
+        <th>用户名</th>
+        <th>层级</th>
+        {# v0.9.5.4 P1-24 — /me 已拥有 1 / 参与的项目 0 列没解释;
+           user 看 /users 表时不知道 "已拥有" 跟 "参与" 区别. h 末尾
+           加 muted 简短解释, 7/17 守门 plain text 缩进. #}
+        <th>已拥有 <span class="muted">(项目所有者, 自动权限)</span></th>
+        <th>参与的项目 <span class="muted">(成员, 来自 role 授权)</span></th>
+        <th>注册方式</th>
+        {% if can_change_rank %}
+          <th>更改职级</th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+        <tr{% if u.id == self_user_id %} class="self"{% endif %}>
+          <td>
+            <a href="{{ url_for('user_view.show_user', user_id=u.id) }}"><code>{{ u.username | e }}</code></a>
+          </td>
+          {# v0.9.5 P0-3 + P0-4 — uniform T-level label
+             (``format_rank_label``) plus an ``<abbr title>`` tooltip
+             so a visitor hovering the T-level gets the role
+             description without leaving the page. The tooltip is
+             the HTML ``title`` attribute (no JS library). #}
+          <td><code><abbr title="{{ format_rank_label(u.rank) | e }}">T{{ u.rank }}</abbr></code> &nbsp; <span class="muted">{{ format_rank_label(u.rank) | e }}</span></td>
+          <td><code>{{ u.owned_count }}</code></td>
+          <td><code>{{ u.member_count }}</code></td>
+          <td><code>{{ u.created_by | e }}</code></td>
+          {% if can_change_rank %}
+            <td>
+              {% if u.id == self_user_id %}
+                <span class="muted">(自己)</span>
+              {% elif u.rank == 0 %}
+                <span class="muted">(permanent)</span>
+              {% else %}
+                <form method="post" action="{{ url_for('user_role.submit_user_rank', user_id=u.id) }}" style="display:inline">
+                  <select name="new_rank" aria-label="New rank for {{ u.username | e }}" style="font-size: var(--text-sm); padding: 2px 6px;">
+                    {% for r in available_new_ranks %}
+                      {# v0.9.5.4 P1-19 — /users 层级 dropdown 没 human-
+                         readable role name; 改 user 职级时 T1/T2/T3/T4
+                         看不出 "T1=管理员 / T2=项目负责人 / T3=团队负责人 /
+                         T4=普通用户". 用 format_rank_label 填完整 label.
+                         跟 user_view L37 (P1-20) 同模式. #}
+                      <option value="{{ r }}"{% if r == u.rank %} selected{% endif %}>{{ format_rank_label(r) | e }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit" style="font-size: var(--text-sm); padding: 2px 8px;">更改</button>
+                </form>
+              {% endif %}
+            </td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="muted">暂无用户。</p>
+{% endif %}
+{% endblock %}
