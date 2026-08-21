@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{# v0.9.5 P0-1/2 — Chinese 403 page. Replaces the bare-JSON 403
+   response (P0-2: the v0.9.4.1 audit caught the "forbidden" body
+   on /projects/new for plain users). The page renders the same
+   template chrome as the rest of the app so the visitor lands
+   on a familiar surface instead of a JSON string. #}
+{% block title %}无权访问{% endblock %}
+{% block content %}
+<h1>无权访问</h1>
+<p>您没有权限执行此操作。</p>
+<p><a href="{{ url_for('projects_list.show_projects') }}">返回项目列表</a></p>
+{# v0.9.5.5b P2-2 — 403 加"返回首页" link, 跟 404 一致。#}
+<p><a href="{{ url_for('index') }}">返回首页</a></p>
+{% endblock %}

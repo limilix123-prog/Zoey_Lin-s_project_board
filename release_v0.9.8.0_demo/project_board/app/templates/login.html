@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<h1>Sign in</h1>
+{% if request.args.get('registered') == '1' %}
+  <div class="flash">Account created — please sign in.</div>
+{% endif %}
+{% if error %}
+  <div class="flash" role="alert">{{ error }}</div>
+{% endif %}
+<form method="post" action="{{ url_for('auth_login.submit_login') }}" autocomplete="off">
+  <p>
+    <label for="login-username">Username</label><br />
+    <input id="login-username" name="username" type="text" maxlength="64" required value="{{ form.username | e }}" autofocus />
+  </p>
+  <p>
+    <label for="login-password">Password</label><br />
+    <input id="login-password" name="password" type="password" maxlength="1024" required />
+  </p>
+  {% if request.args.get('next') %}
+    <input type="hidden" name="next" value="{{ request.args.get('next') | e }}" />
+  {% endif %}
+  <p>
+    <button type="submit">Sign in</button>
+  </p>
+</form>
+<p class="muted">No account? <a href="{{ url_for('auth_register.show_register_form') }}">Register</a>.</p>
+{% endblock %}

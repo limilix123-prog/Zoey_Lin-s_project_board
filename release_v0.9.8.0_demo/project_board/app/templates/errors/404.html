@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{# v0.9.5 P0-1/2 — Chinese 404 page. Replaces Flask's default English
+   "Not Found" page so first-time Chinese visitors see a localised
+   surface. The page is self-contained (7/17): contains the title,
+   an explanation, and one or two links out — no card / border / shadow
+   chrome. P0-8 layer: when the visitor is signed in and the path
+   begins with /projects/, surface a "项目不存在或您无权访问" hint
+   that points back to the project list. The 7/22 RBAC business-lock
+   boundary is preserved — server still returns 404 (not 403) for
+   projects the viewer cannot see; this is purely a UI hint based on
+   the path shape. #}
+{% block title %}未找到{% endblock %}
+{% block content %}
+<h1>未找到</h1>
+<p>您访问的页面不存在,或链接已失效。</p>
+
+{# v0.9.5 P0-8 — UI hint: signed-in visitors hitting a /projects/<n>
+   404 likely got there because they cannot see the project, not
+   because the URL is wrong. The hint points them to the project list
+   so they can find a project they *can* see. The server-side 404
+   is unchanged (7/22 RBAC 业务级 lock preserved). #}
+{% if current_user_is_authenticated() and request.path.startswith('/projects') %}
+  <p>项目不存在,或您无权访问该项目。</p>
+  <p><a href="{{ url_for('projects_list.show_projects') }}">返回项目列表</a></p>
+  {# v0.9.5.5b P2-2 — 404 加"返回首页" link, 让访客从任意 404 都能
+     跳回首页 (/) 而不是只跳项目列表。7/17 守门 plain text, 不用
+     card / pill 包装。沿 auth_logout 的 url_for("index") 约定。#}
+  <p><a href="{{ url_for('index') }}">返回首页</a></p>
+{% else %}
+  <p><a href="{{ url_for('projects_list.show_projects') }}">返回项目列表</a></p>
+  <p><a href="{{ url_for('index') }}">返回首页</a></p>
+  {% if not current_user_is_authenticated() %}
+    <p>已登录账号可看到更多项目。<a href="{{ url_for('auth_login.show_login_form') }}">登录</a> &nbsp; <a href="{{ url_for('auth_register.show_register_form') }}">注册</a></p>
+  {% endif %}
+{% endif %}
+
+<p class="muted">不了解 <abbr title="系统管理员 / 平台管理员 / 项目负责人 / 团队负责人 / 普通用户">T0..T4</abbr> 这些职级代号? <a href="{{ url_for('help.show_glossary') }}">查看术语表</a></p>
+{% endblock %}

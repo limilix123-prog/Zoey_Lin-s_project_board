@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{# v0.9.5 P0-4 — single source of truth for the T0..T4 rank
+   scale plus the project / node / role-grant terms. The page
+   is reachable from the top nav's "帮助" link and from the
+   404 / 403 error pages. Static content; no DB lookups. #}
+{% block title %}帮助 / 术语表{% endblock %}
+{% block content %}
+<h1>帮助 / 术语表</h1>
+<p>本页是平台全部核心术语的索引。每个术语在站内多处出现 (T0..T4 在 user 列表 / 项目页 / 帮助页 / nav 链接都出现),此页是统一解释入口。</p>
+
+<h2>职级 T0..T4 (RBAC)</h2>
+<p>平台用 5 级 <strong>职级 (T-level)</strong> 描述用户身份。数字越小权限越大 (0 是最高级,4 是最低级)。每个职级都有: <strong>代号</strong> (T0) + <strong>中文名</strong> (系统管理员) + <strong>说明</strong>。</p>
+<dl>
+  <dt><abbr title="系统管理员">T0 系统管理员</abbr></dt>
+  <dd>最高级。拥有所有权限:管理所有项目 + 改任何用户的职级 (T0 自己除外, T0 永久)。通常由 bootstrap seed 创建, 不可降级。</dd>
+
+  <dt><abbr title="平台管理员">T1 平台管理员</abbr></dt>
+  <dd>仅次于 T0。可访问所有项目 (auto-own), 但职级可被 T0 调整到 T2。</dd>
+
+  <dt><abbr title="项目负责人">T2 项目负责人</abbr></dt>
+  <dd>中等权限。创建项目时自动成为 owner;可管理自己拥有的项目 (设置 / 成员 / 面板编辑)。</dd>
+
+  <dt><abbr title="团队负责人">T3 团队负责人</abbr></dt>
+  <dd>中级。参与项目后, 默认为 team_leader 角色;可对节点授权, 但不是 owner。</dd>
+
+  <dt><abbr title="普通用户">T4 普通用户</abbr></dt>
+  <dd>最低级。自助注册后默认为 T4。仅可访问自己被加入为成员的项目, 默认为 user 角色 (只读)。</dd>
+</dl>
+<p>说明: 用户身份在 user 列表 / 个人页 / 项目页统一显示为 <code>T0 系统管理员</code> 这种格式, 避免出现 "user / T0 / admin" 等不同 label 造成混乱。</p>
+
+<h2>项目 / 节点 / 角色 相关术语</h2>
+<dl>
+  <dt>项目 (Project)</dt>
+  <dd>一个独立的工作单元, 有名称 / 描述 / owner / 成员列表 / 节点树 / 角色集合。所有用户操作都以 "在某个项目里" 为上下文。</dd>
+
+  <dt>节点 (Node) / 项目树 (6-level tree)</dt>
+  <dd>项目内 6 层结构的最小单位 (顶层 → 5 个子层)。每个节点有: 名称 / 描述 / 状态 (待办 / 进行中 / 已完成 / 已归档) / 父节点 ID。节点由 T0 / T1 / owner 在 <code>/projects/&lt;id&gt;/board</code> 页面维护。</dd>
+
+  <dt>所有者 (Owner)</dt>
+  <dd>一个项目有一个 owner, 拥有项目最高权限 (改设置 / 删项目 / 管理成员)。owner 必须是 T2 或以上。可在 <code>/projects/&lt;id&gt;/members</code> 页面变更 (仅 T0 / T1 可改 owner)。</dd>
+
+  <dt>成员 (Member) / 角色 (Role)</dt>
+  <dd>每个项目可加入若干成员, 每个成员在该项目内有 1 个角色 (<code>project_leader</code> / <code>team_leader</code> / <code>user</code> / 自定义角色)。角色决定成员对每个节点的访问权限 (可写 / 只读 / 不可见)。</dd>
+
+  <dt>auto-own (自动拥有)</dt>
+  <dd>T0 / T1 用户的特殊权限: 自动拥有所有项目, 无需在 project_members 表中。可在 <code>/projects/&lt;id&gt;/settings</code> 页面查看该项目的 auto-own 状态。</dd>
+
+  <dt>角色授权 (Role Grant) / 节点授权 (Node Permission)</dt>
+  <dd>每个角色可对项目内每个节点单独设置权限: 可写 / 只读 / 不可见。授权在 <code>/projects/&lt;id&gt;/roles</code> 页面配置, 由 T0 / T1 / owner 编辑。</dd>
+
+  <dt>自定义角色 (Custom Role)</dt>
+  <dd>在默认 3 个角色 (project_leader / team_leader / user) 之外, T0 / T1 / owner 可创建额外角色 (如 "Reviewer" / "Developer"), 并独立配置每个节点的授权。</dd>
+
+  <dt>看板 (Board) / 状态 (Status)</dt>
+  <dd>项目内的节点编辑界面 (6-level 树), 可在 <code>/projects/&lt;id&gt;/board</code> 访问。每个节点有 4 种状态: 待办 / 进行中 / 已完成 / 已归档。</dd>
+
+  <dt>RBAC 业务级 lock</dt>
+  <dd>权限检查在 server 端代码拦截 (不是物理 chmod), 任何写操作都必走 server 鉴权 + audit 记录。即使有人用 SQL 直接改 DB, server 启动时也会 hash-check DB 一致性, 不一致直接 sys.exit(1)。</dd>
+</dl>
+
+<h2>常见操作指南</h2>
+<ul>
+  <li><strong>创建项目</strong>: T0 / T1 可在 <code>/projects/new</code> 创建新项目 (自动成为 owner)。</li>
+  <li><strong>加入项目</strong>: 由项目 owner 在 <code>/projects/&lt;id&gt;/members</code> 添加。</li>
+  <li><strong>改用户职级</strong>: T0 可改任何用户 (除自己); T1 可改 T2 及以下; T2 可改 T3 及以下; T3 可改 T4。在 <code>/users/&lt;id&gt;</code> 页面操作。</li>
+  <li><strong>找回密码</strong>: 在 <code>/me</code> 页面下方 "Change password" 表单。</li>
+</ul>
+
+<p>如有其他问题, 请联系 T0 系统管理员。</p>
+{% endblock %}
